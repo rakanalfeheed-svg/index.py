@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>لوحة تقنية المعلومات</title>
+  <link rel="stylesheet" href="aaa.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo">🖥️</span><b>IT Dashboard</b></div>
+    <nav class="top-actions">
+      <button id="themeToggle" class="btn ghost">المظهر</button>
+      <button id="addTicketBtn" class="btn primary">+ تذكرة جديدة</button>
+    </nav>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+    
+      <button class="nav-item" data-view="tickets">تذاكر الدعم</button>
+      <button class="nav-item" data-view="assets">الأصول والأجهزة</button>
+      <button class="nav-item" data-view="maintenance">الصيانة والتحديثات</button>
+      
+    </aside>
+
+    <section class="content">
+      <!-- نظرة عامة -->
+      <div id="view-overview">
+        <div class="cards">
+          <div class="card">
+            <div class="card-head">
+              <h3>التذاكر المفتوحة</h3>
+              <span id="openTickets" class="badge amber">—</span>
+            </div>
+            <div id="sparkTickets" class="chart"></div>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h3>التوافر العام للخدمات</h3>
+              <span id="uptime" class="badge green">—</span>
+            </div>
+            <p class="muted">متوسط آخر 24 ساعة عبر الخوادم الأساسية.</p>
+          </div>
+          <div class="card">
+            <div class="card-head">
+              <h3>تنبيهات الأمان</h3>
+              <span id="secAlerts" class="badge red">—</span>
+            </div>
+            <ul id="miniAlerts" class="list slim"></ul>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>أحدث الأعطال</h3>
+          <table class="table" id="incidentsTable" aria-label="سجل الأعطال">
+            <thead>
+              <tr>
+                <th>التاريخ</th><th>الخدمة</th><th>الحالة</th><th>المدة</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- تذاكر الدعم -->
+      <div id="view-tickets" hidden>
+        <div class="panel">
+          <div class="row gap">
+            <input id="ticketSearch" type="text" placeholder="ابحث برقم التذكرة أو العنوان" />
+            <select id="ticketFilter">
+              <option value="all">الكل</option>
+              <option value="open">مفتوحة</option>
+              <option value="inprogress">قيد المعالجة</option>
+              <option value="closed">مغلقة</option>
+            </select>
+          </div>
+          <table class="table" id="ticketsTable" aria-label="تذاكر الدعم">
+            <thead>
+              <tr>
+                <th>#</th><th>العنوان</th><th>الأولوية</th><th>الحالة</th><th>القسم</th><th>تحديث</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      
+      <!-- الأصول -->
+      <div id="view-assets" hidden>
+        <div class="panel">
+          <div class="row gap">
+            <input id="assetSearch" type="text" placeholder="ابحث باسم الجهاز أو IP" />
+            <select id="assetType">
+              <option value="all">الكل</option>
+              <option value="server">خادم</option>
+              <option value="pc">حاسوب</option>
+              <option value="printer">طابعة</option>
+              <option value="switch">محول</option>
+            </select>
+           
+          </div>
+          <table class="table" id="assetsTable">
+            <thead>
+              <tr>
+                <th>الأصل</th><th>النوع</th><th>IP</th><th>الموقع</th><th>الحالة</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- الصيانة -->
+      <div id="view-maintenance" hidden>
+        <div class="panel">
+          <h3>جدولة الصيانة والتحديثات</h3>
+          <form id="maintForm" class="form">
+            <div class="row">
+              <input type="text" id="maintTitle" placeholder="عنوان المهمة" />
+              <input type="datetime-local" id="maintWhen" />
+            </div>
+            <textarea id="maintNotes" rows="3" placeholder="تفاصيل العمل (الخوادم/الخدمة المستهدفة)"></textarea>
+            <button class="btn primary" type="submit">إضافة</button>
+          </form>
+          <ul id="maintList" class="list"></ul>
+        </div>
+      </div>
+
+      
+
+  <footer class="footer">
+    <span>© 2026 قسم تقنية المعلومات</span>
+   
+  </footer>
+
+  <!-- نافذة إضافة تذكرة -->
+  <dialog id="ticketDialog">
+    <form id="ticketForm" method="dialog" class="form">
+      <h3>تذكرة دعم جديدة</h3>
+      <input id="tTitle" type="text" placeholder="عنوان المشكلة" required />
+      <div class="row">
+        <select id="tPriority" required>
+          <option value="low">منخفض</option>
+          <option value="med">متوسط</option>
+          <option value="high">عالٍ</option>
+        </select>
+        <select id="tDept" required>
+          <option value="IT">IT</option>
+          <option value="HR">HR</option>
+          <option value="Sales">المبيعات</option>
+        </select>
+      </div>
+      <textarea id="tDesc" rows="3" placeholder="وصف مختصر"></textarea>
+      <menu class="row right">
+        <button value="cancel" class="btn">إلغاء</button>
+        <button id="tSubmit" class="btn primary">حفظ</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <script src="a.js"></script>
+</body>
+</html>

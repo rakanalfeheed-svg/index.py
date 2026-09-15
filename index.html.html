@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>لوحة الدعم الفني</title>
+  <style>
+    :root{
+      --bg:#0b1220; --surface:#0f172a; --card:#111827; --txt:#e5e7eb; --muted:#94a3b8;
+      --border:#1f2937; --primary:#3b82f6; --ok:#22c55e; --warn:#f59e0b; --crit:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .wrap{max-width:1260px;margin:auto;padding:16px}
+    header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+    h1{margin:0;font-size:22px}
+    .topbar{display:flex;gap:8px;align-items:center}
+    input[type="search"]{width:220px;max-width:45vw}
+    input,select,button,textarea{
+      background:var(--surface);color:var(--txt);border:1px solid var(--border);
+      border-radius:10px;padding:10px;font-size:14px;outline:none
+    }
+    button{background:var(--primary);border:none;cursor:pointer}
+    button.ghost{background:transparent;border:1px solid var(--border)}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px}
+    .kpi .v{font-size:30px;font-weight:800}
+    .kpi small{color:var(--muted)}
+    .charts{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+    canvas{width:100%;height:200px;background:var(--surface);border:1px solid var(--border);border-radius:10px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px;border-bottom:1px solid var(--border);text-align:right;font-size:14px}
+    th{color:#cbd5e1}
+    .badge{padding:.15rem .55rem;border-radius:999px;font-size:.8rem;border:1px solid var(--border)}
+    .prio-low{background:#0b2d19}.prio-medium{background:#172033}.prio-high{background:#3a241c}.prio-urgent{background:#3b1b1b}
+    .status-new{color:#38bdf8}.status-open{color:#60a5fa}.status-pending{color:var(--warn)}
+    .status-onhold{color:#a78bfa}.status-resolved{color:var(--ok)}.status-closed{color:#94a3b8}
+    .sla-ok{color:var(--ok)} .sla-warn{color:var(--warn)} .sla-crit{color:var(--crit)}
+    .filters{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+    .row{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+    .footer{color:var(--muted);font-size:12px;margin-top:14px}
+    /* حوار (Modal) بسيط */
+    .modal{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;padding:16px}
+    .modal.open{display:flex}
+    .modal .box{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;max-width:680px;width:100%}
+    .form-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+    label{font-size:12px;color:#cbd5e1;display:block;margin-bottom:4px}
+    .sr{position:absolute;left:-9999px}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>لوحة الدعم الفني</h1>
+    <div class="topbar">
+      <input type="search" id="q" placeholder="ابحث بالموضوع أو المالك..." />
+      <button id="addBtn">+ إضافة تذكرة</button>
+      <button id="exportBtn" class="ghost">تصدير CSV</button>
+    </div>
+  </header>
+
+  <!-- KPIs -->
+  <div class="grid">
+    <div class="card kpi"><div>تذاكر مفتوحة</div><div class="v" id="kpi-open">0</div><small>الآن</small></div>
+    <div class="card kpi"><div>بانتظار الرد</div><div class="v" id="kpi-pending">0</div></div>
+    <div class="card kpi"><div>متأخرة عن SLA</div><div class="v" id="kpi-overdue">0</div></div>
+    <div class="card kpi"><div>متوسط الحل (س)</div><div class="v" id="kpi-avg">0</div></div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts" style="margin-top:12px">
+    <div class="card">
+      <h3 style="margin:0 0 8px 0">التذاكر حسب الحالة</h3>
+      <canvas id="chartStatus" aria-label="Chart status" role="img"></canvas>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 8px 0">التذاكر حسب الأولوية</h3>
+      <canvas id="chartPriority" aria-label="Chart priority" role="img"></canvas>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="card" style="margin-top:12px">
+    <div class="row">
+      <h3 style="margin:0">قائمة التذاكر</h3>
+      <div class="filters">
+        <select id="f-status" title="الحالة">
+          <option value="">كل الحالات</option>
+          <option value="new">جديدة</option>
+          <option value="open">مفتوحة</option>
+          <option value="pending">بانتظار</option>
+          <option value="onhold">معلّقة</option>
+          <option value="resolved">محلولة</option>
+          <option value="closed">مغلقة</option>
+        </select>
+        <select id="f-priority" title="الأولوية">
+          <option value="">كل الأولويات</option>
+          <option value="low">منخفضة</option>
+          <option value="medium">متوسطة</option>
+          <option value="high">عالية</option>
+          <option value="urgent">عاجلة</option>
+        </select>
+        <select id="f-agent" title="الوكيل">
+          <option value="">كل الوكلاء</option>
+        </select>
+      </div>
+    </div>
+
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th>#</th><th>الموضوع</th><th>الأولوية</th><th>الحالة</th><th>الوكيل</th><th>الإنشاء</th><th>SLA</th><th class="sr">أفعال</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="footer">ملاحظة: غيّر الألوان والبيانات في أقسام CSS/JavaScript حسب حاجتك. لا يعتمد هذا الملف على أي مكتبات خارجية.</div>
+</div>
+
+<!-- Modal: إضافة/تعديل تذكرة -->
+<div class="modal" id="ticketModal" aria-hidden="true" aria-labelledby="mTitle" role="dialog">
+  <div class="box">
+    <div class="row" style="margin-bottom:8px">
+      <h3 id="mTitle" style="margin:0">تذكرة جديدة</h3>
+      <div style="display:flex;gap:8px">
+        <button class="ghost" id="closeModal">إغلاق</button>
+        <button id="saveTicket">حفظ</button>
+      </div>
+    </div>
+    <div class="form-grid">
+      <div>
+        <label>الموضوع</label>
+        <input id="f-subject" placeholder="مثال: انقطاع الشبكة في الدور 3" />
+      </div>
+      <div>
+        <label>الأولوية</label>
+        <select id="f-prio">
+          <option value="low">Low</option><option value="medium" selected>Medium</option>
+          <option value="high">High</option><option value="urgent">Urgent</option>
+        </select>
+      </div>
+      <div>
+        <label>الحالة</label>
+        <select id="f-stat">
+          <option value="new">New</option><option value="open" selected>Open</option>
+          <option value="pending">Pending</option><option value="onhold">On Hold</option>
+          <option value="resolved">Resolved</option><option value="closed">Closed</option>
+        </select>
+      </div>
+      <div>
+        <label>الوكيل</label>
+        <input id="f-agent2" placeholder="اسم الوكيل" />
+      </div>
+      <div>
+        <label>SLA (ساعات حتى الاستحقاق)</label>
+        <input id="f-sla" type="number" min="1" step="1" value="8" />
+      </div>
+      <div style="grid-column:1/-1">
+        <label>الوصف</label>
+        <textarea id="f-desc" rows="3" placeholder="تفاصيل المشكلة أو الطلب"></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // بيانات تجريبية قابلة للتعديل
+  let tickets = [
+    {id:101, subject:"تعطّل الطابعة", priority:"medium", status:"open", assignee:"Ali", created:"2026-03-25T08:10:00Z", due:"2026-04-02T10:00:00Z", resolved:null, desc:"Printer offline"},
+    {id:102, subject:"VPN لا يعمل", priority:"high", status:"pending", assignee:"Nora", created:"2026-03-29T11:30:00Z", due:"2026-03-31T15:00:00Z", resolved:null, desc:"Client auth fails"},
+    {id:103, subject:"طلب حساب بريد", priority:"low", status:"resolved", assignee:"Sara", created:"2026-03-20T09:00:00Z", due:"2026-03-23T09:00:00Z", resolved:"2026-03-21T13:00:00Z", desc:"New mailbox"},
+    {id:104, subject:"انقطاع شبكة بالدور 3", priority:"urgent", status:"open", assignee:"Khalid", created:"2026-03-30T06:50:00Z", due:"2026-03-30T10:00:00Z", resolved:null, desc:"Switch down"},
+    {id:105, subject:"مشكلة تسجيل دخول", priority:"medium", status:"closed", assignee:"Ali", created:"2026-03-15T12:00:00Z", due:"2026-03-16T12:00:00Z", resolved:"2026-03-15T15:10:00Z", desc:"Password reset"},
+  ];
+
+  // عناصر
+  const q = document.getElementById('q');
+  const fStatus = document.getElementById('f-status');
+  const fPriority = document.getElementById('f-priority');
+  const fAgent = document.getElementById('f-agent');
+  const tbody = document.querySelector('#tbl tbody');
+  const addBtn = document.getElementById('addBtn');
+  const exportBtn = document.getElementById('exportBtn');
+
+  // عناصر المودال
+  const modal = document.getElementById('ticketModal');
+  const closeModal = document.getElementById('closeModal');
+  const saveTicket = document.getElementById('saveTicket');
+  const fSubject = document.getElementById('f-subject');
+  const fPrio = document.getElementById('f-prio');
+  const fStat = document.getElementById('f-stat');
+  const fAgent2 = document.getElementById('f-agent2');
+  const fSla = document.getElementById('f-sla');
+  const fDesc = document.getElementById('f-desc');
+  const mTitle = document.getElementById('mTitle');
+  let editId = null;
+
+  // أدوات وقت
+  const fmt = d => new Date(d).toLocaleString('ar-EG');
+  const hoursBetween = (a,b) => Math.round((new Date(b)-new Date(a))/36e5*100)/100;
+
+  // قوائم الوكلاء
+  function refreshAgents() {
+    const agents = [...new Set(tickets.map(t=>t.assignee).filter(Boolean))].sort();
+    fAgent.innerHTML = '<option value="">كل الوكلاء</option>' + agents.map(a=>`<option>${a}</option>`).join('');
+  }
+
+  // أصناف
+  const prioClass = p => ({low:'prio-low',medium:'prio-medium',high:'prio-high',urgent:'prio-urgent'})[p] || 'prio-medium';
+  const statusClass = s => ({new:'status-new',open:'status-open',pending:'status-pending',onhold:'status-onhold',resolved:'status-resolved',closed:'status-closed'})[s] || '';
+
+  // KPIs
+  function updateKPIs(view){
+    const now = new Date();
+    const open = view.filter(t => !['resolved','closed'].includes(t.status));
+    const pending = view.filter(t => t.status==='pending');
+    const overdue = open.filter(t => t.due && new Date(t.due) < now);
+    const solved = view.filter(t => t.resolved);
+    const avg = solved.length ? (solved.reduce((s,t)=> s + hoursBetween(t.created, t.resolved), 0) / solved.length) : 0;
+
+    document.getElementById('kpi-open').textContent = open.length;
+    document.getElementById('kpi-pending').textContent = pending.length;
+    document.getElementById('kpi-overdue').textContent = overdue.length;
+    document.getElementById('kpi-avg').textContent = Math.round(avg*100)/100;
+  }
+
+  // جداول
+  function renderTable(view){
+    const now = new Date();
+    tbody.innerHTML = view.map(t=>{
+      let slaHtml = '<span class="sla-warn">—</span>';
+      if(t.due){
+        const d = new Date(t.due);
+        if(d < now) slaHtml = `<span class="sla-crit">متأخرة بـ ${Math.ceil((now-d)/36e5)} س</span>`;
+        else slaHtml = `<span class="sla-ok">متبقي ${Math.ceil((d-now)/36e5)} س</span>`;
+      }
+      return `<tr>
+        <td>${t.id}</td>
+        <td title="${(t.desc||'').replace(/"/g,'&quot;')}">${t.subject}</td>
+        <td><span class="badge ${prioClass(t.priority)}">${t.priority}</span></td>
+        <td class="${statusClass(t.status)}">${t.status}</td>
+        <td>${t.assignee || '—'}</td>
+        <td>${fmt(t.created)}</td>
+        <td>${slaHtml}</td>
+        <td>
+          <button class="ghost" onclick="openEdit(${t.id})">تعديل</button>
+          <button class="ghost" onclick="removeTicket(${t.id})">حذف</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // فلاتر
+  function applyFilters(){
+    const s = fStatus.value, p = fPriority.value, a = fAgent.value;
+    const query = q.value.trim().toLowerCase();
+    const view = tickets.filter(t=>{
+      const okS = !s || t.status===s;
+      const okP = !p || t.priority===p;
+      const okA = !a || t.assignee===a;
+      const text = (t.subject + ' ' + (t.assignee||'') + ' ' + (t.desc||'')).toLowerCase();
+      const okQ = !query || text.includes(query);
+      return okS && okP && okA && okQ;
+    });
+    renderTable(view);
+    updateKPIs(view);
+    updateCharts(view);
+  }
+
+  // رسومات Canvas بسيطة
+  function drawBar(canvasId, labels, values, colors){
+    const c = document.getElementById(canvasId), ctx = c.getContext('2d');
+    const W = c.width = c.clientWidth, H = c.height = c.clientHeight;
+    ctx.clearRect(0,0,W,H);
+    const max = Math.max(1, ...values);
+    const pad = 28, slot = (W - pad*2)/values.length, barW = slot*0.6;
+    values.forEach((v,i)=>{
+      const h = (H - pad*2) * (v/max);
+      const x = pad + i*slot + (slot-barW)/2;
+      ctx.fillStyle = colors[i] || '#3b82f6';
+      ctx.fillRect(x, H - pad - h, barW, h);
+      ctx.fillStyle = '#cbd5e1'; ctx.textAlign='center';
+      ctx.fillText(labels[i], x+barW/2, H-8);
+      ctx.fillText(String(v), x+barW/2, H - pad - h - 6);
+    });
+  }
+
+  function drawDoughnut(canvasId, labels, values, colors){
+    const c = document.getElementById(canvasId), ctx = c.getContext('2d');
+    const W = c.width = c.clientWidth, H = c.height = c.clientHeight;
+    ctx.clearRect(0,0,W,H);
+    const total = values.reduce((a,b)=>a+b,0) || 1;
+    let start = -Math.PI/2;
+    const cx=W/2, cy=H/2, r=Math.min(W,H)/2 - 18, ir=r*0.55;
+    values.forEach((v,i)=>{
+      const ang = (v/total) * Math.PI*2;
+      ctx.beginPath(); ctx.moveTo(cx,cy);
+      ctx.arc(cx,cy,r,start,start+ang); ctx.closePath();
+      ctx.fillStyle = colors[i] || '#3b82f6'; ctx.fill();
+      start += ang;
+    });
+    ctx.globalCompositeOperation='destination-out';
+    ctx.beginPath(); ctx.arc(cx,cy,ir,0,Math.PI*2); ctx.fill();
+    ctx.globalCompositeOperation='source-over';
+    ctx.fillStyle = '#cbd5e1'; ctx.textAlign='center';
+    ctx.fillText(total + ' تذكرة', cx, cy+4);
+  }
+
+  function updateCharts(view){
+    const statuses = ['new','open','pending','onhold','resolved','closed'];
+    const byStatus = statuses.map(s=>({label:s, value:view.filter(t=>t.status===s).length})).filter(x=>x.value>0);
+    const prios = ['low','medium','high','urgent'];
+    const byPrio = prios.map(p=>({label:p, value:view.filter(t=>t.priority===p).length})).filter(x=>x.value>0);
+
+    drawDoughnut('chartStatus', byStatus.map(x=>x.label), byStatus.map(x=>x.value),
+      ['#38bdf8','#3b82f6','#f59e0b','#a78bfa','#22c55e','#94a3b8']);
+    drawBar('chartPriority', byPrio.map(x=>x.label), byPrio.map(x=>x.value),
+      ['#22c55e','#3b82f6','#f59e0b','#ef4444']);
+  }
+
+  // إضافة/تعديل/حذف
+  function openAdd(){
+    editId = null;
+    mTitle.textContent = 'تذكرة جديدة';
+    fSubject.value = ''; fPrio.value='medium'; fStat.value='open';
+    fAgent2.value=''; fSla.value=8; fDesc.value='';
+    modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
+  }
+  function openEdit(id){
+    const t = tickets.find(x=>x.id===id); if(!t) return;
+    editId = id;
+    mTitle.textContent = `تعديل تذكرة #${id}`;
+    fSubject.value=t.subject; fPrio.value=t.priority; fStat.value=t.status;
+    fAgent2.value=t.assignee||''; fSla.value= t.due ? Math.max(1, Math.ceil((new Date(t.due)-new Date(t.created))/36e5)) : 8;
+    fDesc.value=t.desc||'';
+    modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
+  }
+  function closeM(){ modal.classList.remove('open'); modal.setAttribute('aria-hidden','true'); }
+
+  function save(){
+    const subject = fSubject.value.trim(); if(!subject) return alertLike('الرجاء إدخال موضوع');
+    const pr = fPrio.value, st=fStat.value, ag=fAgent2.value.trim();
+    const hrs = Math.max(1, parseInt(fSla.value||'8',10));
+    if(editId==null){
+      const id = tickets.length ? Math.max(...tickets.map(t=>t.id))+1 : 1;
+      const now = new Date().toISOString();
+      tickets.unshift({id, subject, priority:pr, status:st, assignee:ag||null, created:now,
+                       due:new Date(Date.now()+hrs*36e5).toISOString(), resolved:null, desc:fDesc.value.trim()});
+    }else{
+      const t = tickets.find(x=>x.id===editId);
+      t.subject=subject; t.priority=pr; t.status=st; t.assignee=ag||null; t.desc=fDesc.value.trim();
+      t.due = new Date(new Date(t.created).getTime()+hrs*36e5).toISOString();
+      if(st==='resolved' && !t.resolved) t.resolved = new Date().toISOString();
+      if(['closed','resolved'].includes(st) && !t.resolved) t.resolved = new Date().toISOString();
+    }
+    refreshAgents(); applyFilters(); closeM();
+  }
+  function removeTicket(id){
+    tickets = tickets.filter(t=>t.id!==id);
+    refreshAgents(); applyFilters();
+  }
+  // تنبيه بديل بسيط
+  function alertLike(msg){
+    const d = document.createElement('div');
+    d.textContent=msg; d.style.position='fixed'; d.style.bottom='16px'; d.style.left='50%';
+    d.style.transform='translateX(-50%)'; d.style.background='#111827'; d.style.border='1px solid #374151';
+    d.style.color='#fff'; d.style.padding='10px 14px'; d.style.borderRadius='10px'; d.style.zIndex='9999';
+    document.body.appendChild(d); setTimeout(()=>d.remove(), 2000);
+  }
+
+  // تصدير CSV
+  function exportCSV(){
+    const heads = ['id','subject','priority','status','assignee','created','due','resolved'];
+    const rows = [heads.join(',')].concat(tickets.map(t=>heads.map(h=>`"${(t[h]??'').toString().replace(/"/g,'""')}"`).join(',')));
+    const blob = new Blob([rows.join('\n')], {type:'text/csv;charset=utf-8;'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tickets.csv'; a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ربط الأحداث
+  q.addEventListener('input', applyFilters);
+  [fStatus,fPriority,fAgent].forEach(el=>el.addEventListener('input', applyFilters));
+  addBtn.addEventListener('click', openAdd);
+  exportBtn.addEventListener('click', exportCSV);
+  closeModal.addEventListener('click', closeM);
+  saveTicket.addEventListener('click', save);
+  modal.addEventListener('click', e=>{ if(e.target===modal) closeM(); });
+  window.addEventListener('keydown', e=>{ if(e.key==='Escape') closeM(); });
+
+  // بدء
+  refreshAgents();
+  applyFilters();
+  window.addEventListener('resize', ()=>updateCharts(tickets));
+</script>
+</body>
+</html>
